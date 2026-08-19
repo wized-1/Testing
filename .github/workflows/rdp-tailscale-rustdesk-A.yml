@@ -264,16 +264,68 @@ jobs:
           netsh advfirewall firewall delete rule name=$udpName 2>$null
           netsh advfirewall firewall add rule name=$udpName dir=in action=allow protocol=UDP localport=21116
 
-      # ---- Install VirtualBox and ZCode ----
-      - name: Install VirtualBox and ZCode
+      # ---- Install VirtualBox (required) ----
+      - name: Install VirtualBox
         run: |
           Write-Host "Installing VirtualBox..."
-          winget install --id Oracle.VirtualBox --exact --silent --accept-package-agreements --accept-source-agreements
+          winget install --id Oracle.VirtualBox --exact --silent `
+            --accept-package-agreements --accept-source-agreements
+          if ($LASTEXITCODE -eq 0) { 
+            Write-Host "✅ VirtualBox installed successfully." 
+          } else {
+            Write-Host "⚠️ VirtualBox installation had issues, but continuing..."
+          }
+
+      # ---- Install ZCode (optional - continue if fails) ----
+      - name: Install ZCode (optional - continue on failure)
+        continue-on-error: true
+        run: |
+          Write-Host "Attempting ZCode installation..."
           
-          Write-Host "Installing ZCode..."
-          winget install --id ZhipuAI.ZCode --exact --silent --accept-package-agreements --accept-source-agreements
+          # Try 1: Winget with force
+          Write-Host "Try 1: Winget install..."
+          winget install --id ZhipuAI.ZCode --exact --silent `
+            --accept-package-agreements --accept-source-agreements --force
           
-          Write-Host "Installation completed."
+          if ($LASTEXITCODE -ne 0) {
+            # Try 2: Direct download with NSIS silent flags
+            Write-Host "Try 2: Direct download with NSIS installer..."
+            $url = "https://cdn-zcode.z.ai/zcode/electron/releases/3.7.7/windows-x64/ZCode-3.7.7-win-x64.exe"
+            $installer = "$env:TEMP\ZCode.exe"
+            
+            Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
+            
+            # Try different silent flags
+            Write-Host "Trying /S flag..."
+            Start-Process -FilePath $installer -ArgumentList "/S" -Wait -NoNewWindow
+            
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "Trying /VERYSILENT flag..."
+              Start-Process -FilePath $installer -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
+            }
+            
+            Remove-Item $installer -Force -ErrorAction SilentlyContinue
+          }
+          
+          # Verify installation
+          $zcodePaths = @(
+            "$env:LOCALAPPDATA\Programs\ZCode\ZCode.exe",
+            "$env:ProgramFiles\ZCode\ZCode.exe",
+            "$env:USERPROFILE\AppData\Local\Programs\ZCode\ZCode.exe"
+          )
+          
+          $found = $false
+          foreach ($path in $zcodePaths) {
+            if (Test-Path $path) {
+              Write-Host "✅ ZCode found at: $path"
+              $found = $true
+              break
+            }
+          }
+          
+          if (-not $found) {
+            Write-Host "⚠️ ZCode not found after installation attempts. This is optional, continuing..."
+          }
 
       - name: Launch RustDesk (foreground) + Screenshot to Gofile
         run: |
