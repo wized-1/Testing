@@ -1,4 +1,4 @@
-name: RDP + Tailscale + RustDesk
+name: RDP + Tailscale + RustDesk + (Optional) Chrome Remote Desktop (A)
 
 on:
   workflow_dispatch:
@@ -264,14 +264,14 @@ jobs:
           netsh advfirewall firewall delete rule name=$udpName 2>$null
           netsh advfirewall firewall add rule name=$udpName dir=in action=allow protocol=UDP localport=21116
 
-      # ---- Install Antigravity and VirtualBox ----
-      - name: Install Antigravity and VirtualBox
+      # ---- Install VirtualBox and ZCode ----
+      - name: Install VirtualBox and ZCode
         run: |
-          Write-Host "Installing Antigravity..."
-          winget install --id Google.Antigravity --exact --silent --accept-package-agreements --accept-source-agreements
-          
           Write-Host "Installing VirtualBox..."
           winget install --id Oracle.VirtualBox --exact --silent --accept-package-agreements --accept-source-agreements
+          
+          Write-Host "Installing ZCode..."
+          winget install --id ZhipuAI.ZCode --exact --silent --accept-package-agreements --accept-source-agreements
           
           Write-Host "Installation completed."
 
