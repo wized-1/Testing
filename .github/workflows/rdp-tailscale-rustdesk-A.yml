@@ -264,7 +264,7 @@ jobs:
           netsh advfirewall firewall delete rule name=$udpName 2>$null
           netsh advfirewall firewall add rule name=$udpName dir=in action=allow protocol=UDP localport=21116
 
-      # ---- Install VirtualBox (required) ----
+      # ---- Install VirtualBox ----
       - name: Install VirtualBox
         run: |
           Write-Host "Installing VirtualBox..."
@@ -276,55 +276,100 @@ jobs:
             Write-Host "⚠️ VirtualBox installation had issues, but continuing..."
           }
 
-      # ---- Install ZCode (optional - continue if fails) ----
-      - name: Install ZCode (optional - continue on failure)
+      # ---- Install LLM Studio ----
+      - name: Install LLM Studio
         continue-on-error: true
         run: |
-          Write-Host "Attempting ZCode installation..."
+          Write-Host "Installing LLM Studio..."
           
-          # Try 1: Winget with force
-          Write-Host "Try 1: Winget install..."
-          winget install --id ZhipuAI.ZCode --exact --silent `
+          # Try winget first
+          winget install --id LLMStudio.LLMStudio --exact --silent `
             --accept-package-agreements --accept-source-agreements --force
           
           if ($LASTEXITCODE -ne 0) {
-            # Try 2: Direct download with NSIS silent flags
-            Write-Host "Try 2: Direct download with NSIS installer..."
-            $url = "https://cdn-zcode.z.ai/zcode/electron/releases/3.7.7/windows-x64/ZCode-3.7.7-win-x64.exe"
-            $installer = "$env:TEMP\ZCode.exe"
+            Write-Host "Winget failed, trying direct download..."
+            
+            # Direct download (check for latest version)
+            $url = "https://github.com/lmstudio-ai/lmstudio/releases/latest/download/LM-Studio-win-x64.exe"
+            $installer = "$env:TEMP\LMStudio.exe"
             
             Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
-            
-            # Try different silent flags
-            Write-Host "Trying /S flag..."
             Start-Process -FilePath $installer -ArgumentList "/S" -Wait -NoNewWindow
-            
-            if ($LASTEXITCODE -ne 0) {
-              Write-Host "Trying /VERYSILENT flag..."
-              Start-Process -FilePath $installer -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
-            }
             
             Remove-Item $installer -Force -ErrorAction SilentlyContinue
           }
           
           # Verify installation
-          $zcodePaths = @(
-            "$env:LOCALAPPDATA\Programs\ZCode\ZCode.exe",
-            "$env:ProgramFiles\ZCode\ZCode.exe",
-            "$env:USERPROFILE\AppData\Local\Programs\ZCode\ZCode.exe"
+          $lmPaths = @(
+            "$env:LOCALAPPDATA\Programs\LM Studio\LM Studio.exe",
+            "$env:ProgramFiles\LM Studio\LM Studio.exe",
+            "$env:USERPROFILE\AppData\Local\Programs\LM Studio\LM Studio.exe"
           )
           
           $found = $false
-          foreach ($path in $zcodePaths) {
+          foreach ($path in $lmPaths) {
             if (Test-Path $path) {
-              Write-Host "✅ ZCode found at: $path"
+              Write-Host "✅ LLM Studio found at: $path"
               $found = $true
               break
             }
           }
           
           if (-not $found) {
-            Write-Host "⚠️ ZCode not found after installation attempts. This is optional, continuing..."
+            Write-Host "⚠️ LLM Studio not found. It may need manual installation."
+          }
+
+      # ---- Install OpenClaw ----
+      - name: Install OpenClaw
+        continue-on-error: true
+        run: |
+          Write-Host "Installing OpenClaw..."
+          
+          # Check if OpenClaw is available via winget
+          winget search OpenClaw
+          
+          # Try winget if available
+          winget install --id OpenClaw.OpenClaw --exact --silent `
+            --accept-package-agreements --accept-source-agreements --force 2>$null
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Winget not available, trying direct download..."
+            
+            # Try downloading from GitHub or official source
+            # This is a placeholder - you may need to adjust the URL
+            $url = "https://github.com/openclaw/openclaw/releases/latest/download/OpenClaw-win-x64.exe"
+            $installer = "$env:TEMP\OpenClaw.exe"
+            
+            try {
+              Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
+              Start-Process -FilePath $installer -ArgumentList "/S" -Wait -NoNewWindow
+              Remove-Item $installer -Force -ErrorAction SilentlyContinue
+              Write-Host "✅ OpenClaw installation attempted."
+            } catch {
+              Write-Host "⚠️ OpenClaw direct download failed: $($_.Exception.Message)"
+            }
+          } else {
+            Write-Host "✅ OpenClaw installed via winget."
+          }
+          
+          # Check if installation was successful
+          $ocPaths = @(
+            "$env:LOCALAPPDATA\Programs\OpenClaw\OpenClaw.exe",
+            "$env:ProgramFiles\OpenClaw\OpenClaw.exe",
+            "$env:USERPROFILE\AppData\Local\Programs\OpenClaw\OpenClaw.exe"
+          )
+          
+          $found = $false
+          foreach ($path in $ocPaths) {
+            if (Test-Path $path) {
+              Write-Host "✅ OpenClaw found at: $path"
+              $found = $true
+              break
+            }
+          }
+          
+          if (-not $found) {
+            Write-Host "⚠️ OpenClaw not found. It may need manual installation."
           }
 
       - name: Launch RustDesk (foreground) + Screenshot to Gofile
